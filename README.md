@@ -1,3 +1,4 @@
-# Performance-Comparison-of-Deep-RL-Algorithms-for-Energy-Systems-Optimal-Scheduling
-## The source code for Performance comparision of Deep RL algorithms for Energy Systems Optimal Scheduling 
-## The Code will be open sourced after the paper is received. 
+# Optimal Energy System Scheduling Combining Mixed-Integer Programming and Deep Reinforcement Learning
+## The source code for paper "Optimal Energy System Scheduling Combining Mixed-Integer Programming and Deep Reinforcement Learning"
+## The Code will be open sourced as soon as possible after the paper is received.
+
