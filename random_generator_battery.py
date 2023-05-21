@@ -23,17 +23,14 @@ class DataManager():
     def add_price_element(self,element):self.Prices.append(element)
     def add_electricity_element(self,element):self.Electricity_Consumption.append(element)
 
-    # get current time data based on given month day, and day_time
     def get_pv_data(self,month,day,day_time):return self.PV_Generation[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+day_time]
     def get_price_data(self,month,day,day_time):return self.Prices[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+day_time]
     def get_electricity_cons_data(self,month,day,day_time):return self.Electricity_Consumption[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+day_time]
-    # get series data for one episode
     def get_series_pv_data(self,month,day): return self.PV_Generation[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
     def get_series_price_data(self,month,day):return self.Prices[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
     def get_series_electricity_cons_data(self,month,day):return self.Electricity_Consumption[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
 
 class DG():
-    '''simulate a simple diesel generator here'''
     def __init__(self,parameters):
         self.name=parameters.keys()
         self.a_factor=parameters['a']
@@ -45,7 +42,6 @@ class DG():
         self.ramping_down=parameters['ramping_down']
         self.last_step_output=None 
     def step(self,action_gen):
-        ##god damn fuck, I forget to set each generator could be zero. 
         output_change=action_gen*self.ramping_up# constrain the output_change with ramping up boundary
         output=self.current_output+output_change
         if output>0:
@@ -54,7 +50,6 @@ class DG():
             output=0
         self.current_output=output
     def _get_cost(self,output):
-        # here transfer mw parameters to kw parameters, avarage max cost per unit max [15,22]
         if output<=0:
             cost=0
         else:
@@ -76,8 +71,6 @@ class Battery():
         self.max_discharge=parameters['max_discharge']# max discharge ability
         self.efficiency=parameters['efficiency']# charge and discharge efficiency
     def step(self,action_battery):
-        '''receive battery action, here is the action [-1,1] spaces and then update SOC with the constrains of charge/discharge, SOC boundaries'''
-        # max(min_state_value,min(max_state_value,s+action))
         energy=action_battery*self.max_charge
         updated_capacity=max(self.min_soc,min(self.max_soc,(self.current_capacity*self.capacity+energy)/self.capacity))
         self.energy_change=(updated_capacity-self.current_capacity)*self.capacity# if charge, positive, if discharge, negative
@@ -105,7 +98,6 @@ class Grid():
             past_price=self.past_price# self.past price is fixed as the last days price
         else:
             past_price=self.price[24*(self.day-1):24*self.day]# get the price data of previous day 
-            # print(past_price)
         for item in past_price[(self.time-24)::]:# here if current time_step is 10, then the 10th data of past price is extrated to the result as the  first value
             result.append(item)
         for item in self.price[24*self.day:(24*self.day+self.time)]:# continue to retrive data from the past and attend it to the result. as past price is change everytime. 
@@ -149,11 +141,6 @@ class ESSEnv(gym.Env):
         self.DG1_max=self.dg1.power_output_max
         self.DG2_max=self.dg2.power_output_max
         self.DG3_max=self.dg3.power_output_max
-    @property
-    def netload(self):
-        '''get attributor of the class'''
-        # return self.demand-self.grid.wp_gen-self.grid.pv_gen
-        pass
 
     def reset(self):
         '''reset is used for initialize the environment, decide the day of month.'''
@@ -182,9 +169,7 @@ class ESSEnv(gym.Env):
         net_load=(electricity_demand-pv_generation)/self.Netload_max
         obs=np.concatenate((np.float32(time_step),np.float32(price),np.float32(soc),np.float32(net_load),np.float32(dg1_output),np.float32(dg2_output),np.float32(dg3_output)),axis=None)
         return obs
-    def _build_normalized_state(self):
-        '''maybe dont need to do this in here but just do this in data manager'''
-        pass 
+
     def step(self,action):# state transition here current_obs--take_action--get reward-- get_finish--next_obs
         ## here we want to put take action into each components
         current_obs=self._build_state()
@@ -243,13 +228,6 @@ class ESSEnv(gym.Env):
         if finish:
             self.final_step_outputs=final_step_outputs
             self.current_time=0
-            # self.day+=1
-            # if self.day>Constant.MONTHS_LEN[self.month-1]:
-            #     self.day=1
-            #     self.month+=1
-            # if self.month>12:
-            #     self.month=1
-            #     self.day=1
             next_obs=self.reset()
             
         else:
@@ -281,10 +259,7 @@ class ESSEnv(gym.Env):
             element=electricity[i:i+60]
             self.data_manager.add_electricity_element(sum(element)*300)
     ## test environment
-if __name__ == '__main__': 
-    '''here we need a function that could validate 
-    whether the current month, day and time could coordinate to sent data
-    8,December coordination of data is test from this way, that after 24 steps, we rechoose the month, day and reset current time= 0 '''
+if __name__ == '__main__':
     env=ESSEnv()
     env.TRAIN=False
     rewards=[]

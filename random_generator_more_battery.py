@@ -1,13 +1,9 @@
 
-import random
 import numpy as np
-
 import pandas as pd 
 import gym
 from gym import spaces 
-import math 
-import os 
-import sys
+
 from Parameters import battery_parameters,dg_parameters
 
 class Constant:
@@ -32,7 +28,6 @@ class DataManager():
     def get_series_price_data(self,month,day):return self.Prices[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
     def get_series_electricity_cons_data(self,month,day):return self.Electricity_Consumption[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
 class DG():
-    '''simulate a simple diesel generator here'''
     def __init__(self,parameters):
         self.name=parameters.keys()
         self.a_factor=parameters['a']
@@ -44,8 +39,7 @@ class DG():
         self.ramping_down=parameters['ramping_down']
         self.last_step_output=None 
     def step(self,action_gen):
-        ##god damn fuck, I forget to set each generator could be zero. 
-        output_change=action_gen*self.ramping_up# constrain the output_change with ramping up boundary
+        output_change=action_gen*self.ramping_up#
         output=self.current_output+output_change
         if output>0:
             output=max(self.power_output_min,min(self.power_output_max,output))# meet the constrain 
@@ -53,7 +47,6 @@ class DG():
             output=0
         self.current_output=output
     def _get_cost(self,output):
-        # here transfer mw parameters to kw parameters, avarage max cost per unit max [15,22]
         if output<=0:
             cost=0
         else:
@@ -73,8 +66,7 @@ class Battery():
         self.max_discharge=parameters['max_discharge']# max discharge ability
         self.efficiency=parameters['efficiency']# charge and discharge efficiency
     def step(self,action_battery):
-        '''receive battery action, here is the action [-1,1] spaces and then update SOC with the constrains of charge/discharge, SOC boundaries'''
-        # max(min_state_value,min(max_state_value,s+action))
+
         energy=action_battery*self.max_charge
         updated_capacity=max(self.min_soc,min(self.max_soc,(self.current_capacity*self.capacity+energy)/self.capacity))
         self.energy_change=(updated_capacity-self.current_capacity)*self.capacity# if charge, positive, if discharge, negative
@@ -109,8 +101,6 @@ class Grid():
             result.append(item)
         return result 
 class ESSEnv(gym.Env):
-    '''ENV descirption: 
-    the agent learn to charge with low price and then discharge at high price, in this way, it could get benefits'''
     def __init__(self,**kwargs):
         super(ESSEnv,self).__init__()
         #parameters 
@@ -148,7 +138,6 @@ class ESSEnv(gym.Env):
 
 
     def reset(self):
-        '''reset is used for initialize the environment, decide the day of month.'''
         self.month=np.random.randint(1,13)# here we choose 12 month
 
         if self.TRAIN:
@@ -207,7 +196,6 @@ class ESSEnv(gym.Env):
                 sell_benefit=self.grid._get_cost(price,unbalance)*self.sell_coefficient #sell money to grid is little [0.029,0.1]
             else:
                 sell_benefit=self.grid._get_cost(price,self.grid.exchange_ability)*self.sell_coefficient
-                #real unbalance that even grid could not meet 
                 self.excess=unbalance-self.grid.exchange_ability
                 excess_penalty=self.excess*self.penalty_coefficient
         else:# unbalance <0, its load shedding model, in this case, deficient penalty is used 
@@ -231,7 +219,6 @@ class ESSEnv(gym.Env):
 
         self.unbalance=unbalance
         self.real_unbalance=self.shedding+self.excess
-        '''here we also need to store the final step outputs for the final steps including, soc, output of units for seeing the final states'''
         final_step_outputs=[self.dg1.current_output,self.dg2.current_output,self.dg3.current_output,self.battery1.current_capacity,self.battery2.current_capacity,self.battery3.current_capacity]
         self.current_time+=1
         finish=(self.current_time==self.episode_length)
@@ -244,7 +231,6 @@ class ESSEnv(gym.Env):
             next_obs=self._build_state()
         return current_obs,next_obs,float(reward),finish
     def render(self, current_obs, next_obs, reward, finish):
-        # print('day={}'.format(self.day))
         print('day={},hour={:2d}, state={}, next_state={}, reward={:.4f}, terminal={}\n'.format(self.day,self.current_time, current_obs, next_obs, reward, finish))
     def _load_year_data(self):
         '''this private function is used to load the electricity consumption, pv generation and related prices in a year as 
@@ -258,7 +244,6 @@ class ESSEnv(gym.Env):
         price=price_df['Price'].apply(lambda x:x.replace(',','.')).to_numpy(dtype=float)
         electricity=electricity_df['Power'].apply(lambda x:x.replace(',','.')).to_numpy(dtype=float)
         # netload=electricity-pv_data
-        '''we carefully redesign the magnitude for price and amount of generation as well as demand'''
         for element in pv_data:
             self.data_manager.add_pv_element(element*100)
         for element in price:
@@ -269,11 +254,7 @@ class ESSEnv(gym.Env):
         for i in range(0,electricity.shape[0],60):
             element=electricity[i:i+60]
             self.data_manager.add_electricity_element(sum(element)*300)
-    ## test environment
-if __name__ == '__main__': 
-    '''here we need a function that could validate 
-    whether the current month, day and time could coordinate to sent data
-    8,December coordination of data is test from this way, that after 24 steps, we rechoose the month, day and reset current time= 0 '''
+if __name__ == '__main__':
     env=ESSEnv()
     env.TRAIN=False
     rewards=[]

@@ -7,8 +7,7 @@ import pandas as pd
 import pyomo.environ as pyo
 import pyomo.kernel as pmo
 from omlt import OmltBlock
-import gurobipy as gp
-from gurobipy import GRB
+
 from gurobipy import *
 from omlt.neuralnet import NetworkDefinition, FullSpaceNNFormulation,ReluBigMFormulation
 from omlt.io.onnx import write_onnx_model_with_bounds,load_onnx_neural_network_with_bounds
@@ -18,7 +17,6 @@ import torch.nn as nn
 from copy import deepcopy
 import wandb
 from random_generator_battery import ESSEnv
-from tools import test_one_episode
 ## define net
 class ReplayBuffer:
     def __init__(self, max_len, state_dim, action_dim, gpu_id=0):
@@ -58,9 +56,6 @@ class ReplayBuffer:
         self.next_idx = next_idx
 
     def sample_batch(self, batch_size) -> tuple:
-        '''get reward, mask, action, state, next_state,
-        actually, next_state is calculated based on state_indice,
-        we need to randomly choose more blocks, instead of justing random choose state'''
         indices = rd.randint(self.now_len - 1, size=batch_size)
         r_m_a = self.buf_other[indices]
         return (r_m_a[:, 0:1],
@@ -72,15 +67,12 @@ class ReplayBuffer:
     def update_now_len(self):
         self.now_len = self.max_len if self.if_full else self.next_idx
 class Arguments:
-    '''revise here for our own purpose'''
     def __init__(self, agent=None, env=None):
 
         self.agent = agent  # Deep Reinforcement Learning algorithm
         self.env = env  # the environment for training
-        self.plot_shadow_on=False# control do we need to plot all shadow figures
         self.cwd = None  # current work directory. None means set automatically
         self.if_remove = False  # remove the cwd folder? (True, False, None:ask me)
-        # self.replace_train_data=True
         self.visible_gpu = '0,1,2,3'  # for example: os.environ['CUDA_VISIBLE_DEVICES'] = '0, 2,'
         self.worker_num = 2  # rollout workers number pre GPU (adjust it to get high GPU usage)
         self.num_threads = 8  # cpu_num for evaluate model, torch.set_num_threads(self.num_threads)
@@ -88,7 +80,6 @@ class Arguments:
         '''Arguments for training'''
         self.num_episode=3000
         self.gamma = 0.995  # discount factor of future rewards
-        # self.reward_scale = 1  # an approximate target reward usually be closed to 256
         self.learning_rate = 1e-4  # 2 ** -14 ~= 6e-5
         self.soft_update_tau = 1e-2  # 2 ** -8 ~= 5e-3
 
@@ -97,7 +88,6 @@ class Arguments:
         self.repeat_times = 2 ** 3  # repeatedly update network to keep critic's loss small
         self.target_step = 1000 # collect target_step experiences , then update network, 1024
         self.max_memo = 50000  # capacity of replay buffer
-        self.if_per_or_gae = False  # PER for off-policy sparse reward: Prioritized Experience Replay.
         ## arguments for controlling exploration
         self.explorate_decay=0.99
         self.explorate_min=0.3
@@ -152,8 +142,6 @@ class CriticQ(nn.Module):
         self.net_q2=nn.Sequential(nn.Linear(mid_dim,mid_dim),nn.ReLU(),
                                   nn.Linear(mid_dim,1))# we get q2 value
     def forward(self,value):
-        '''we change state,action to value because when we use this part to build our MIP formulation and
-        omlt could not directly build with two inputs'''
         mid=self.net_head(value)
         return self.net_q1(mid)
     def get_q1_q2(self,value):
@@ -172,7 +160,6 @@ class AgentBase:
         self.criterion = torch.nn.SmoothL1Loss()
 
     def init(self, net_dim, state_dim, action_dim, learning_rate=1e-4, _if_per_or_gae=False, gpu_id=0):
-        # explict call self.init() for multiprocessing
         self.device = torch.device(
             f"cuda:{gpu_id}" if (torch.cuda.is_available() and (gpu_id >= 0)) else "cpu")
         self.action_dim = action_dim
@@ -275,7 +262,6 @@ class AgentMIPDQN(AgentBase):
         q1, q2 = self.cri.get_q1_q2(torch.cat((state, action),dim=-1))
         obj_critic = self.criterion(q1, q_label) + self.criterion(q2, q_label)  # twin critics
         return obj_critic, state
-    # set replay buffer
 
 
 
@@ -310,13 +296,10 @@ def get_episode_return(env, act, device):
         if done:
             break
     return episode_return,episode_unbalance,episode_operation_cost
-## define MIP
 class Actor_MIP:
     '''this actor is used to get the best action and Q function, the only input should be batch tensor state, action, and network, while the output should be
     batch tensor max_action, batch tensor max_Q'''
     def __init__(self,scaled_parameters,batch_size,net,state_dim,action_dim,env,constrain_on=False):
-        # self.input_batch_state = input_batch_state
-        # self.input_batch_action = input_batch_action
         self.batch_size = batch_size
         self.net = net
         self.state_dim = state_dim
@@ -474,8 +457,6 @@ if __name__ == '__main__':
                 if i_episode % 10 == 0:
                     # target_step
                     with torch.no_grad():
-                        # we choose to use decayed exploration to update other off policy algorithms here. We introduce
-                        # extra parameters, which we dont know whether this would improve the performance or not？
                         agent._update_exploration_rate(args.explorate_decay,args.explorate_min)
                         trajectory = agent.explore_env(env, target_step)
                         steps, r_exp = update_buffer(trajectory)
