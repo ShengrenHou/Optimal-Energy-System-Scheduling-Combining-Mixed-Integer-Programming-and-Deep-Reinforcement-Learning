@@ -399,7 +399,6 @@ if __name__ == '__main__':
         args.agent.cri_target = True
         args.env = ESSEnv()
         args.init_before_training(if_main=True)
-        args.env.seed(seed)
         '''init agent and environment'''
         agent = args.agent
         env = args.env
