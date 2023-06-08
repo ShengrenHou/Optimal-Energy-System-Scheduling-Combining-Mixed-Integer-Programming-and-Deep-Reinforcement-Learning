@@ -1,4 +1,7 @@
-
+# ------------------------------------------------------------------------
+# Energy management environment for reinforcement learning agents developed by
+# Hou Shengren, TU Delft, h.shengren@tudelft.nl
+# ------------------------------------------------------------------------
 import random
 import numpy as np
 

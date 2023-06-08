@@ -1,3 +1,9 @@
+# ------------------------------------------------------------------------
+# Optimal-Energy-System-Scheduling-Combining-Mixed-Integer-Programming-and-Deep-Reinforcement-Learning
+# MIP-DQN algorithm developed by
+# Hou Shengren, TU Delft, h.shengren@tudelft.nl
+# Pedro, TU Delft, p.p.vergara.barrios@tudeflt.nl
+# ------------------------------------------------------------------------
 import pickle
 import torch
 import os
